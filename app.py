@@ -161,7 +161,10 @@ def rewrite_m3u8(url):
 
 if __name__ == '__main__':
     Thread(target=stream_scraper_loop, daemon=True).start()
-    app.run(host='0.0.0.0', port=5000, debug=False)import os
+if __name__ == '__main__':
+    scraper_thread = Thread(target=stream_scraper_loop, daemon=True)
+    scraper_thread.start()
+    app.run(host='0.0.0.0', port=5000, debug=False)
 import time
 import re
 import requests
