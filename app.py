@@ -37,10 +37,11 @@ def live_player():
 
 @app.route('/stream.m3u8')
 def proxy_playlist():
-    # Fetch the master playlist
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0"}
     try:
-        res = requests.get(STREAM_URL, headers=headers, timeout=10)
+        # Increased timeout to 15s to prevent 500 errors on slow connections
+        res = requests.get(STREAM_URL, headers=headers, timeout=15)
+        res.raise_for_status() 
         base_url = STREAM_URL.rsplit('/', 1)[0] + '/'
         
         lines = []
@@ -54,27 +55,29 @@ def proxy_playlist():
                 
         return Response("\n".join(lines), content_type='application/x-mpegURL')
     except Exception as e:
-        return str(e), 500
+        # This will show the actual error in your Render logs instead of a silent 500
+        print(f"Error fetching playlist: {e}")
+        return f"Playlist Error: {str(e)}", 500
 
 @app.route('/proxy')
 def proxy_handler():
     target_url = unquote(request.args.get('url', ''))
     if not target_url: return "Missing URL", 400
     
-    # We use a browser-like header to prevent the server from blocking the segment requests
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
-        "Accept": "*/*",
         "Referer": "http://www.myvideo.az/"
     }
     
     try:
-        res = requests.get(target_url, headers=headers, timeout=10)
+        res = requests.get(target_url, headers=headers, timeout=15)
         return Response(res.content, status=res.status_code, headers={
             "Access-Control-Allow-Origin": "*",
             "Content-Type": res.headers.get('Content-Type', 'video/MP2T')
         })
-    except Exception as e: return str(e), 500
+    except Exception as e:
+        print(f"Error proxying segment: {e}")
+        return str(e), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
