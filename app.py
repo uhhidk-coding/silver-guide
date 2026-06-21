@@ -6,7 +6,7 @@ from flask import Flask, Response, render_template_string, request
 app = Flask(__name__)
 
 # The direct stream URL
-STREAM_URL = "http://eypv0ag4.siauliairsavlt.pw/iptv/NW3M9M6N2H4NYM/19065/index.m3u8"
+STREAM_URL = "http://hls01-04.az.myvideo.az/hls-live/livepkgr/sport2/sport2/sport2.m3u8?rRb545vJBB5tYzB7vVP"
 
 @app.route('/')
 def live_player():
@@ -26,11 +26,10 @@ def live_player():
             <script>
                 var video = document.getElementById('video');
                 var hls = new Hls();
-                // We load the stream directly from our proxy route
                 hls.loadSource('/stream.m3u8');
                 hls.attachMedia(video);
                 video.muted = true;
-                video.play().catch(e => console.log("Play clicked required"));
+                video.play().catch(e => console.log("User interaction required for play"));
             </script>
         </body>
         </html>
@@ -40,20 +39,23 @@ def live_player():
 def proxy_playlist():
     # Fetch the master playlist directly
     headers = {"User-Agent": "Mozilla/5.0"}
-    res = requests.get(STREAM_URL, headers=headers)
-    base_url = STREAM_URL.rsplit('/', 1)[0] + '/'
-    
-    lines = []
-    for line in res.text.splitlines():
-        line = line.strip()
-        if not line or line.startswith('#'):
-            lines.append(line)
-        else:
-            # Proxy every segment or key found in the playlist
-            abs_url = urljoin(base_url, line)
-            lines.append(f"/proxy?url={quote(abs_url)}")
-            
-    return Response("\n".join(lines), content_type='application/x-mpegURL')
+    try:
+        res = requests.get(STREAM_URL, headers=headers, timeout=10)
+        base_url = STREAM_URL.rsplit('/', 1)[0] + '/'
+        
+        lines = []
+        for line in res.text.splitlines():
+            line = line.strip()
+            if not line or line.startswith('#'):
+                lines.append(line)
+            else:
+                # Proxy every segment found in the playlist
+                abs_url = urljoin(base_url, line)
+                lines.append(f"/proxy?url={quote(abs_url)}")
+                
+        return Response("\n".join(lines), content_type='application/x-mpegURL')
+    except Exception as e:
+        return str(e), 500
 
 @app.route('/proxy')
 def proxy_handler():
@@ -61,6 +63,7 @@ def proxy_handler():
     if not target_url: return "Missing URL", 400
     
     try:
+        # Pass through the stream segments
         res = requests.get(target_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         return Response(res.content, status=res.status_code, headers={
             "Access-Control-Allow-Origin": "*",
