@@ -18,7 +18,7 @@ def live_player():
             <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
             <style>
                 body { background: #000; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
-                video { width: 90%; max-width: 850px; border-radius: 8px; }
+                video { width: 90%; max-width: 850px; border-radius: 8px; background: #000; }
             </style>
         </head>
         <body>
@@ -29,7 +29,7 @@ def live_player():
                 hls.loadSource('/stream.m3u8');
                 hls.attachMedia(video);
                 video.muted = true;
-                video.play().catch(e => console.log("User interaction required for play"));
+                video.play().catch(e => console.log("Click to play"));
             </script>
         </body>
         </html>
@@ -37,8 +37,8 @@ def live_player():
 
 @app.route('/stream.m3u8')
 def proxy_playlist():
-    # Fetch the master playlist directly
-    headers = {"User-Agent": "Mozilla/5.0"}
+    # Fetch the master playlist
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0"}
     try:
         res = requests.get(STREAM_URL, headers=headers, timeout=10)
         base_url = STREAM_URL.rsplit('/', 1)[0] + '/'
@@ -49,7 +49,6 @@ def proxy_playlist():
             if not line or line.startswith('#'):
                 lines.append(line)
             else:
-                # Proxy every segment found in the playlist
                 abs_url = urljoin(base_url, line)
                 lines.append(f"/proxy?url={quote(abs_url)}")
                 
@@ -62,12 +61,18 @@ def proxy_handler():
     target_url = unquote(request.args.get('url', ''))
     if not target_url: return "Missing URL", 400
     
+    # We use a browser-like header to prevent the server from blocking the segment requests
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
+        "Accept": "*/*",
+        "Referer": "http://www.myvideo.az/"
+    }
+    
     try:
-        # Pass through the stream segments
-        res = requests.get(target_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+        res = requests.get(target_url, headers=headers, timeout=10)
         return Response(res.content, status=res.status_code, headers={
             "Access-Control-Allow-Origin": "*",
-            "Content-Type": res.headers.get('Content-Type', 'application/octet-stream')
+            "Content-Type": res.headers.get('Content-Type', 'video/MP2T')
         })
     except Exception as e: return str(e), 500
 
